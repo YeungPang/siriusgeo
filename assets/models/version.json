@@ -1,0 +1,24 @@
+[
+    {
+        "version": 1636410287,
+        "files": [
+            "https://geo.siriustechnology.net/storage/gamedata/models/geo.json",
+            "https://geo.siriustechnology.net/storage/gamedata/images/icons/Countries.svg"
+        ]
+    },
+    {
+        "version": 1625410286,
+        "files": [
+            "https://geo.siriustechnology.net/storage/gamedata/models/geo-ord.json",
+            "https://geo.siriustechnology.net/storage/gamedata/images/icons/Countries.svg"
+        ]
+    },
+    {
+        "version": 1614410285,
+        "files": [
+            "https://geo.siriustechnology.net/storage/gamedata/models/check1.json",
+            "https://geo.siriustechnology.net/storage/gamedata/models/check2.json",
+            "https://geo.siriustechnology.net/storage/gamedata/images/icons/Countries.svg"
+        ]
+    }
+]
