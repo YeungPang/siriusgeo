@@ -6,7 +6,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:jiffy/jiffy.dart';
 import 'dart:convert';
 import 'dart:io';
-import 'package:path_provider/path_provider.dart';
+import 'package:intl/intl.dart';
 import 'package:archive/archive.dart';
 
 
@@ -123,3 +123,19 @@ processValue(Map<String, dynamic> map, dynamic value) {
     final bytes = File(filename).readAsBytesSync();
     return ZipDecoder().decodeBytes(bytes);
   }
+
+  int getTimestampInt() {
+  final formatted = DateFormat('yyyyMMddHHmm').format(DateTime.now());
+  return int.parse(formatted);
+}
+
+String extractTextFile(Archive archive, String filename) {
+  dynamic file = archive.firstWhere(
+    (f) => f.name == filename,
+  );
+
+  if (file == null) return '';
+
+  final bytes = file.content as List<int>;
+  return String.fromCharCodes(bytes);
+}

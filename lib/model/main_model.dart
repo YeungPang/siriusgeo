@@ -15,7 +15,7 @@ import '../builder/pattern.dart';
 import '../instance_manager.dart';
 
 class MainModel {
-  String path = "models/";
+  String path = "assets/models/";
   final String mainModelName = "geo.json";
   final int dbVersion = 1;
   final String dbName = "siriusgeo.db";
@@ -26,6 +26,7 @@ class MainModel {
   bool skipDB = false;
   bool isLocal = false;
   bool isFile = true;
+  bool clearCache = false;
   Map<String, dynamic> modelTimestamp = {};
 
   DataBaseAgent get dba => dbAgent;
@@ -47,6 +48,11 @@ class MainModel {
   late AppActions appActions;
   late String dirPath;
   late String instanceHost;
+  late String profileStr;
+  int newTimestamp = 0;
+
+  Directory? modelDir;
+  Directory? iconDir;
 
   BuildContext? context;
 
@@ -145,6 +151,10 @@ class MainModel {
       }
     }
     if (bodyBytes != null) {
+      int count = fname.split('/').length;
+      if (count > 1) {
+        fname = fname.substring(fname.indexOf("/") + 1);
+      }
       final zipFile = File('$dirPath/$fname');
       await zipFile.writeAsBytes(bodyBytes);
       final bytes = zipFile.readAsBytesSync();
@@ -153,26 +163,31 @@ class MainModel {
     return null;
   }
 
-  Future<void> downloadAndExtract(String fname) async {
-    final archive = await getServerZipFile(fname);
-    for (final file in archive) {
-      if (file.isFile) {
-        final filename = file.name.toLowerCase();
-        String? fullpath;
-        if (filename.contains("svg")) {
-          fullpath = '$dirPath/icons/$filename';
-        } else if (filename.contains("json")) {
-          fullpath = '$dirPath/models/$filename';
-        }
-        // Only extract SVGs (optional safety)
-        if (fullpath == null) continue;
-
-        final data = file.content as List<int>;
-        final outFile = File(fullpath);
-
-        await outFile.writeAsBytes(data, flush: true);
-      }
+  Future<void> extract(Archive archive) async {
+    for (ArchiveFile file in archive) {
+      await writeFile(file);
     }
+  }
+
+  Future<void> writeFile(ArchiveFile file) async {
+    String filename = file.name.toLowerCase();
+    int inx = filename.lastIndexOf("/");
+    if (inx != -1) {
+      filename = filename.substring(inx + 1);
+    }
+    String? fullpath;
+    if (filename.contains("svg")) {
+      fullpath = '$dirPath/icons/$filename';
+    } else if (filename.contains("json")) {
+      fullpath = '$dirPath/models/$filename';
+    }
+    // Only extract SVGs (optional safety)
+    if (fullpath == null) return;
+
+    final data = file.content as List<int>;
+    final outFile = File(fullpath);
+
+    await outFile.writeAsBytes(data, flush: true);
   }
 
   Future<String> getLocalJson(dynamic context) async {
@@ -220,21 +235,85 @@ class MainModel {
     //return DefaultAssetBundle.of(context).loadString(mainModelName);
   }
 
-  Future<String> getFileJson(dynamic context) async {
-    final modelPath = '$dirPath/models';
-    final iconPath = '$dirPath/icons';
-    final modelDir = Directory(modelPath);
-    final iconDir = Directory(iconPath);
-    if (!modelDir.existsSync()) {
-      modelDir.createSync(recursive: true);
-      if (!iconDir.existsSync()) iconDir.createSync(recursive: true);
-      await downloadAndExtract('models/JSON.zip');
-      await downloadAndExtract('images/icons/icons.zip');
+  Future<void> initFiles() async {
+    if (!modelDir!.existsSync()) {
+      await createModelDirs();
     } else {
-
+      if (clearCache) {
+        clearCache = false;
+        await versionAgent.removeCachedMap();
+        await createModelDirs();
+        profileStr = getProfile();
+        newTimestamp = getTimestampInt();
+      } else {
+        Archive? update = await getServerZipFile('models/update.zip');
+        if (update != null) {
+          Map<String, dynamic> profileMap = json.decode(profileStr);
+          int profileTimestamp = profileMap["timestamp"] ?? 0;
+          String versionStr = extractTextFile(update!, "version.json");
+          Map<String, dynamic> versionMap = json.decode(versionStr);
+          int oTimestamp = versionMap["oldestAcceptable"] ?? 0;
+          int skipv = 0;
+          if (profileTimestamp < oTimestamp) {
+            await extract(getServerZipFile('models/JSON.zip'));
+            skipv = 1;
+          }
+          oTimestamp = versionMap["iconsOldestAcceptable"] ?? 0;
+          if (profileTimestamp < oTimestamp) {
+            await extract(getServerZipFile('images/icons/icons.zip'));
+            skipv += 1;
+          }
+          if (skipv < 2) {
+            dynamic v = versionMap["version"];
+            int versionTimestamp = (v is String) ? int.parse(v) : v;
+            if (versionTimestamp > profileTimestamp) {
+              skipv += 1;
+              versionMap = versionMap["files"];
+              for (ArchiveFile file in update) {
+                v = versionMap[file.name];
+                int? ts = (v is String) ? int.parse(v) : v;
+                if (((ts != null) && (ts <= profileTimestamp)) ||
+                    (file.name == "version.json"))
+                  continue;
+                await writeFile(file);
+              }
+            }
+          } 
+          if (skipv > 0) {
+            newTimestamp = getTimestampInt();
+          }
+        }
+      }
     }
-    String fname = '$modelPath/${(context is String) ? context : mainModelName}';
-    return await File(fname).readAsString();
+  }
+
+  Future<String> getFileJson(dynamic context) async {
+      /*       final files = iconDir!.listSync();
+
+  for (var file in files) {
+    debugPrint(file.path);
+  }  */
+    String fname =
+        '$dirPath/models/${(context is String) ? context : mainModelName}'
+            .toLowerCase();
+    final file = File(fname);
+    if (file.existsSync()) {
+      return await File(fname).readAsString();
+    } else {
+      debugPrint("Model file not found: $fname");
+      return "";
+    }
+  }
+
+  Future<void> createModelDirs() async {
+    if (!iconDir!.existsSync()) {
+      iconDir!.createSync(recursive: true);
+    }
+    if (!modelDir!.existsSync()) {
+      modelDir!.createSync(recursive: true);
+    }
+    await extract(await getServerZipFile('models/JSON.zip'));
+    await extract(await getServerZipFile('images/icons/icons.zip'));
   }
 
   Future<String> getJson(dynamic context) async {
@@ -292,33 +371,9 @@ class MainModel {
     //return DefaultAssetBundle.of(context).loadString(mainModelName);
   }
 
-  Future<Map<String, dynamic>> getMap(BuildContext context) async {
-    String jsonStr = "";
-    final dir = await getApplicationDocumentsDirectory();
-    dirPath = dir.path;
-    instanceHost = InstanceManager().getInstanceHost();
-    debugPrint("Documents directory: $dirPath");
-    if (dirPath.isEmpty) {
-      throw Exception("Unable to get documents directory path");
-    }
-    debugPrint("Getting model JSON...");
-    if (isLocal) {
-      path = "assets/models/";
-      jsonStr = await getLocalJson(context);
-    } else {
-      final profileFuture = InstanceManager().loadProfileData(); // [0]
-      final jsonFuture = getJson(context); // [1]
-      final profileAndJson = await Future.wait([
-        profileFuture,
-        jsonFuture,
-      ]); // Wait for both to complete
-      jsonStr = profileAndJson[1];
-      if (jsonStr.isNotEmpty && !jsonStr.endsWith('}')) {
-        throw Exception("Unable to dynamically replace profile in model JSON");
-      }
-      String profileStr = profileAndJson[0];
-      if (profileStr.isEmpty || (profileStr == '{}')) {
-        profileStr = '''{
+  String getProfile() {
+    final timestamp = getTimestampInt();
+    return '''{
         "appVersion": "",
         "userToken": "",
         "reset": true,
@@ -330,12 +385,53 @@ class MainModel {
         "progress": [],
         "versions": "0.0",
         "userType": "User",
-        "timestamp": 1636410287,
-        "lastsync": 1627510285,
+        "timestamp": $timestamp,
+        "lastsync": $timestamp,
         "renew": ""
     }''';
-      }
+  }
 
+  Future<Map<String, dynamic>> getMap(BuildContext context) async {
+    String jsonStr = "";
+    final dir = await getApplicationDocumentsDirectory();
+    dirPath = dir.path;
+    instanceHost = InstanceManager().getInstanceHost();
+    debugPrint("Documents directory: $dirPath");
+    if (dirPath.isEmpty) {
+      throw Exception("Unable to get documents directory path");
+    }
+    debugPrint("Getting model JSON...");
+    bool saveProfile = false;
+    if (isLocal) {
+      //path = "models/";
+      jsonStr = await getLocalJson(context);
+    } else {
+      if (isFile) {
+        final modelPath = '$dirPath/models';
+        modelDir ??= Directory(modelPath);
+        final iconPath = '$dirPath/icons';
+        iconDir ??= Directory(iconPath);
+      }
+      //final profileFuture = isFile? getFileJson("userprofile.json") : InstanceManager().loadProfileData();
+      profileStr = isFile
+          ? await getFileJson("userprofile.json")
+          : await InstanceManager().loadProfileData(); // [0]
+      if (profileStr.isEmpty || (profileStr == '{}')) {
+        profileStr = getProfile();
+        saveProfile = true;
+      }
+      // final jsonFuture = getJson(context); // [1]
+      // final profileAndJson = await Future.wait([
+      //   profileFuture,
+      //   jsonFuture,
+      // ]); // Wait for both to complete
+      if (isFile) {
+        await initFiles();
+      }
+      jsonStr = await getJson(context);
+      if (jsonStr.isNotEmpty && !jsonStr.endsWith('}')) {
+        throw Exception("Unable to dynamically replace profile in model JSON");
+      }
       jsonStr =
           '${jsonStr.substring(0, jsonStr.length - 1)}, "userProfile": $profileStr}';
     }
@@ -349,6 +445,16 @@ class MainModel {
       addJFile(ljfiles);
     }
     await loadJFile();
+    if (newTimestamp > 0) {
+      map["userProfile"]["timestamp"] = newTimestamp;
+      map["userProfile"]["lastsync"] = newTimestamp;
+      saveProfile = true;
+    }
+    versionAgent.setMap(map);
+    if (saveProfile) {
+      versionAgent.saveProfile();
+      saveProfile = false;
+    }
     return map;
   }
 

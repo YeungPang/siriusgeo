@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'dart:io';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -223,7 +224,9 @@ class IconPattern extends ProcessPattern {
         map["_widget"] = Icon(id, size: size, color: color);
       } else {
         String img = imgIcons[iname] ?? iname;
-        img = img.replaceAll("${model.instanceHost}/images", model.dirPath).toLowerCase();
+        if (model.isFile) {
+          img = img.replaceAll("${model.instanceHost}/images", model.dirPath).toLowerCase();
+        }
         if (img.contains("http")) {
           if (img.contains("svg")) {
             map["_widget"] = SvgPicture.network(
@@ -258,8 +261,9 @@ class IconPattern extends ProcessPattern {
             );
           }
         } else if (img.contains("svg")) {
-          map["_widget"] = SvgPicture.asset(
-            img,
+          File file = File(img);
+          map["_widget"] = SvgPicture.file(
+            file,
             fit: BoxFit.contain,
             height: size,
           );

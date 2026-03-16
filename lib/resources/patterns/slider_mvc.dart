@@ -41,10 +41,15 @@ class SliderMvc extends Mvc {
     map["_sliderNoti"] = sliderNoti;
     String answer = map["_Answer"].toString();
     if (answer.contains("_ans")) {
-      options =
-          configAgent!.getElement(map["_AnswerOptions"], map, rowList: rowList);
-      List<dynamic>? addOptions =
-          configAgent!.getElement(map["_AddOptions"], map);
+      options = configAgent!.getElement(
+        map["_AnswerOptions"],
+        map,
+        rowList: rowList,
+      );
+      List<dynamic>? addOptions = configAgent!.getElement(
+        map["_AddOptions"],
+        map,
+      );
       if ((addOptions != null) && (addOptions.isNotEmpty)) {
         options.addAll(addOptions);
       }
@@ -67,14 +72,15 @@ class SliderMvc extends Mvc {
       double w = 0.84 * model.scaleWidth;
       if (mvmap.isNotEmpty) {
         map["_checkType"] = true;
+      } else {
+        mvmap = {
+          "_state": map["_state"],
+          "_scaleNoti": ValueNotifier<double>(50.0),
+          "_height": h,
+          "_width": w,
+        };
+        map["_mv"] = mvmap;
       }
-      mvmap = {
-        "_state": map["_state"],
-        "_scaleNoti": ValueNotifier<double>(50.0),
-        "_height": h,
-        "_width": w
-      };
-      map["_mv"] = mvmap;
       // } else {
       //   mvmap["_state"] = "start";
       // }
@@ -86,7 +92,7 @@ class SliderMvc extends Mvc {
         "_height": mvmap["_height"],
         "_width": mvmap["_width"],
         "_alignment": Alignment.center,
-        "_child": pp
+        "_child": pp,
       };
       pf = getPrimePattern["Container"]!;
       pp = pf(imap);
@@ -96,7 +102,7 @@ class SliderMvc extends Mvc {
         "_color": Colors.white,
         "_alignment": Alignment.centerLeft,
         "_btnBRadius": 18.0 * sizeScale,
-        "_child": pp
+        "_child": pp,
       };
       pf = getPrimePattern["ColorButton"]!;
       pp = pf(imap);
@@ -107,7 +113,7 @@ class SliderMvc extends Mvc {
         "_endColor": colorMap["btnBlueGradEnd"],
         "_alignment": Alignment.center,
         "_btnBRadius": size20,
-        "_child": pp
+        "_child": pp,
       };
       map["_colElem"] = pf(imap);
     } else {
@@ -203,8 +209,10 @@ class SliderMvc extends Mvc {
           double per = ((ans1 - mvmap["_in1"]) / ans1 * 100.00).abs();
           n = smap["_corrPer"];
           double corrPer = n.toDouble();
-          map["_subTitle"] =
-              subTitle.replaceFirst("#A%#", per.toStringAsFixed(2));
+          map["_subTitle"] = subTitle.replaceFirst(
+            "#A%#",
+            per.toStringAsFixed(2),
+          );
           if (per <= corrPer) {
             r = "correct";
             mvmap["_resStatus"] = "g";

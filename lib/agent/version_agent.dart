@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:core';
+import 'dart:io';
 import '../instance_manager.dart';
 
 import '../model/locator.dart';
@@ -15,8 +16,9 @@ class VersionAgent {
   Future<Map<String, dynamic>> getMap(String jsonStr) async {
     prefs = await _prefs;
     map = json.decode(jsonStr);
-    String? cached =
-        prefs.containsKey("cachedMap") ? prefs.getString("cachedMap") : null;
+    String? cached = prefs.containsKey("cachedMap")
+        ? prefs.getString("cachedMap")
+        : null;
     if (cached != null) {
       cachedMap = json.decode(cached);
       int mts = map["versionTimestamp"] ?? 0;
@@ -127,24 +129,42 @@ class VersionAgent {
     }
   }
 
-  saveProfile() async {
+  void setMap(Map<String, dynamic> m) {
+    map = m;
+  } 
+  
+  void saveProfile() async {
+    if (model.isFile) {
+      if (model.modelDir != null) {
+        String path = "${model.modelDir!.path}/userprofile.json";
+        File file = File(path);
+        await file.writeAsString(json.encode(map["userProfile"]));
+      }
+    }
     //InstanceManager().saveProfileData(map["userProfile"]);
   }
 
-  removeCachedMap() async {
-    model.dba.deleteDB();
+  Future<void> removeCachedMap() async {
+    if (model.isFile) {
+      if (model.modelDir != null) {
+        await model.modelDir!.delete(recursive: true);
+        await model.iconDir!.delete(recursive: true);
+      }
+    } else {
+      model.dba.deleteDB();
+    }
   }
 
   Future<String> _testUserSyncUp() async {
     Map<String, dynamic> umap = map["userProfile"];
-    String ustr = await rootBundle.loadString("assets/models/update.json");
+    String ustr = await rootBundle.loadString("models/update.json");
     Map<String, dynamic> update = json.decode(ustr);
     int utimestamp = umap["timestamp"];
     int updatets = update["versionTimestamp"];
     if (updatets > utimestamp) {
       return ustr;
     }
-    ustr = await rootBundle.loadString("assets/models/update2.json");
+    ustr = await rootBundle.loadString("models/update2.json");
     update = json.decode(ustr);
     updatets = update["versionTimestamp"];
     if (updatets > utimestamp) {
